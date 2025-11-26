@@ -1,16 +1,16 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "name": "shadcn-plus",
   "displayName": "shadcn/ui Plus",
-  "description": "Add components from shadcn/ui directly from VS Code",
+  "description": "VS Code Extention for shadcn/ui. Init, add one or multiple component directly from VS Code!",
   "publisher": "esty",
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/esteban-cz/shadcn-helper.git"
+    "url": "https://github.com/esteban-cz/shadcn-plus"
   },
   "bugs": {
-    "url": "https://github.com/esteban-cz/shadcn-helper/issues",
+    "url": "https://github.com/esteban-cz/shadcn-plus/issues",
     "email": "tomecka.stepan@gmail.com"
   },
   "engines": {
@@ -31,43 +31,43 @@
   "contributes": {
     "commands": [
       {
-        "command": "shadcn-ui.showMenu",
-        "title": "shadcn/ui: Open Menu"
+        "command": "shadcn-plus.showMenu",
+        "title": "shadcn/ui Plus: Open Menu"
       },
       {
-        "command": "shadcn-ui.initCli",
-        "title": "shadcn/ui: Install CLI"
+        "command": "shadcn-plus.initCli",
+        "title": "shadcn/ui Plus: Install CLI"
       },
       {
-        "command": "shadcn-ui.addNewComponent",
-        "title": "shadcn/ui: Add New Component"
+        "command": "shadcn-plus.addNewComponent",
+        "title": "shadcn/ui Plus: Add New Component"
       },
       {
-        "command": "shadcn-ui.addMultipleComponents",
-        "title": "shadcn/ui: Add Multiple Components"
+        "command": "shadcn-plus.addMultipleComponents",
+        "title": "shadcn/ui Plus: Add Multiple Components"
       },
       {
-        "command": "shadcn-ui.gotoComponentDoc",
-        "title": "shadcn/ui: Open Component Documentation"
+        "command": "shadcn-plus.gotoComponentDoc",
+        "title": "shadcn/ui Plus: Open Component Documentation"
       },
       {
-        "command": "shadcn-ui.reloadComponentList",
-        "title": "shadcn/ui: Reload Component List"
+        "command": "shadcn-plus.reloadComponentList",
+        "title": "shadcn/ui Plus: Reload Component List"
       },
       {
-        "command": "shadcn-ui.gotoDoc",
-        "title": "shadcn/ui: Open Documentation"
+        "command": "shadcn-plus.gotoDoc",
+        "title": "shadcn/ui Plus: Open Documentation"
       }
     ],
     "configuration": {
       "title": "shadcn/ui Plus",
       "properties": {
-        "shadcn-ui.commandWorkingDirectory": {
+        "shadcn-plus.commandWorkingDirectory": {
           "type": "string",
           "default": "",
           "description": "Optional working directory for shadcn/ui commands. Relative paths resolve from the first workspace folder; absolute paths are supported."
         },
-        "shadcn-ui.baseColor": {
+        "shadcn-plus.baseColor": {
           "type": "string",
           "enum": [
             "neutral",
@@ -79,7 +79,7 @@
           "default": "zinc",
           "description": "Default base color passed to the shadcn/ui init command."
         },
-        "shadcn-ui.askBaseColor": {
+        "shadcn-plus.askBaseColor": {
           "type": "boolean",
           "default": false,
           "description": "Ask for the base color each time before running the shadcn/ui init command."
@@ -89,7 +89,7 @@
     "languageModelTools": [
       {
         "name": "get_shadcnComponentList",
-        "displayName": "shadcn/ui: Get Component List",
+        "displayName": "shadcn/ui Plus: Get Component List",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "get_shadcnComponentList",
         "userDescription": "Get the list of components from shadcn/ui",
@@ -97,7 +97,7 @@
       },
       {
         "name": "install_shadcnComponent",
-        "displayName": "shadcn/ui: Download Component",
+        "displayName": "shadcn/ui Plus: Download Component",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "install_shadcnComponent",
         "userDescription": "Download a component from shadcn/ui",

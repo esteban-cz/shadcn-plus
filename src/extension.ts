@@ -31,13 +31,13 @@ import {
 import type { BaseColor, Components } from './utils/registry'
 
 const commands = {
-  initCli: 'shadcn-ui.initCli',
-  addNewComponent: 'shadcn-ui.addNewComponent',
-  addMultipleComponents: 'shadcn-ui.addMultipleComponents',
-  gotoComponentDoc: 'shadcn-ui.gotoComponentDoc',
-  reloadComponentList: 'shadcn-ui.reloadComponentList',
-  gotoDoc: 'shadcn-ui.gotoDoc',
-  showMenu: 'shadcn-ui.showMenu'
+  initCli: 'shadcn-plus.initCli',
+  addNewComponent: 'shadcn-plus.addNewComponent',
+  addMultipleComponents: 'shadcn-plus.addMultipleComponents',
+  gotoComponentDoc: 'shadcn-plus.gotoComponentDoc',
+  reloadComponentList: 'shadcn-plus.reloadComponentList',
+  gotoDoc: 'shadcn-plus.gotoDoc',
+  showMenu: 'shadcn-plus.showMenu'
 } as const
 type CommandKey = keyof typeof commands
 const baseColorValues: BaseColor[] = [
@@ -371,7 +371,7 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
-      const config = vscode.workspace.getConfiguration('shadcn-ui')
+      const config = vscode.workspace.getConfiguration('shadcn-plus')
       const askBaseColor = config.get<boolean>('askBaseColor', false)
       let baseColor = normalizeBaseColor(
         config.get<string>('baseColor', 'zinc')
@@ -528,5 +528,4 @@ export function activate(context: vscode.ExtensionContext) {
   )
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}

@@ -53,13 +53,18 @@
 
 ## Settings
 
-- `shadcn-ui.commandWorkingDirectory` (string): optional working directory for shadcn/ui commands. Leave blank to use the workspace root; relative paths resolve from the first workspace folder; absolute paths are supported.
-- `shadcn-ui.baseColor` (string): default base color passed to `shadcn/ui init`. Options: `neutral`, `gray`, `zinc` (default), `stone`, `slate`.
-- `shadcn-ui.askBaseColor` (boolean): prompt for base color each time before running `shadcn/ui init`.
+- `shadcn-plus.commandWorkingDirectory` (string): optional working directory for shadcn/ui commands. Leave blank to use the workspace root; relative paths resolve from the first workspace folder; absolute paths are supported.
+- `shadcn-plus.baseColor` (string): default base color passed to `shadcn/ui init`. Options: `neutral`, `gray`, `zinc` (default), `stone`, `slate`.
+- `shadcn-plus.askBaseColor` (boolean): prompt for base color each time before running `shadcn/ui init`.
 
 ---
 
 ## Release Notes
+
+### 1.0.2
+
+- Codebase cleanup.
+- Minor code changes.
 
 ### 1.0.1
 

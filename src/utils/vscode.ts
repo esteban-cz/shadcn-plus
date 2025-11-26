@@ -128,7 +128,7 @@ export const getConfiguredCommandCwd = async (): Promise<vscode.Uri | null> => {
     return null
   }
 
-  const config = vscode.workspace.getConfiguration('shadcn-ui')
+  const config = vscode.workspace.getConfiguration('shadcn-plus')
   const configuredPath = config
     .get<string>('commandWorkingDirectory', '')
     .trim()
