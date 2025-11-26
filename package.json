@@ -1,7 +1,7 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "name": "shadcn-plus",
-  "displayName": "shadcn/ui Plus",
+  "displayName": "shadcn/plus",
   "description": "VS Code Extention for shadcn/ui. Init, add one or multiple component directly from VS Code!",
   "publisher": "esty",
   "license": "GPL-3.0-only",
@@ -32,35 +32,35 @@
     "commands": [
       {
         "command": "shadcn-plus.showMenu",
-        "title": "shadcn/ui Plus: Open Menu"
+        "title": "shadcn/plus: Open Menu"
       },
       {
         "command": "shadcn-plus.initCli",
-        "title": "shadcn/ui Plus: Install CLI"
+        "title": "shadcn/plus: Install CLI"
       },
       {
         "command": "shadcn-plus.addNewComponent",
-        "title": "shadcn/ui Plus: Add New Component"
+        "title": "shadcn/plus: Add New Component"
       },
       {
         "command": "shadcn-plus.addMultipleComponents",
-        "title": "shadcn/ui Plus: Add Multiple Components"
+        "title": "shadcn/plus: Add Multiple Components"
       },
       {
         "command": "shadcn-plus.gotoComponentDoc",
-        "title": "shadcn/ui Plus: Open Component Documentation"
+        "title": "shadcn/plus: Open Component Documentation"
       },
       {
         "command": "shadcn-plus.reloadComponentList",
-        "title": "shadcn/ui Plus: Reload Component List"
+        "title": "shadcn/plus: Reload Component List"
       },
       {
         "command": "shadcn-plus.gotoDoc",
-        "title": "shadcn/ui Plus: Open Documentation"
+        "title": "shadcn/plus: Open Documentation"
       }
     ],
     "configuration": {
-      "title": "shadcn/ui Plus",
+      "title": "shadcn/plus",
       "properties": {
         "shadcn-plus.commandWorkingDirectory": {
           "type": "string",
@@ -89,7 +89,7 @@
     "languageModelTools": [
       {
         "name": "get_shadcnComponentList",
-        "displayName": "shadcn/ui Plus: Get Component List",
+        "displayName": "shadcn/plus: Get Component List",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "get_shadcnComponentList",
         "userDescription": "Get the list of components from shadcn/ui",
@@ -97,7 +97,7 @@
       },
       {
         "name": "install_shadcnComponent",
-        "displayName": "shadcn/ui Plus: Download Component",
+        "displayName": "shadcn/plus: Download Component",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "install_shadcnComponent",
         "userDescription": "Download a component from shadcn/ui",

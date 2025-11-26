@@ -19,13 +19,13 @@
 <br>
 
 <div align="center">
-  <p style="margin: 0 0 12px 0; font-size: 2.75rem;"><u><b>shadcn/ui Plus</b></u></p>
-  <img src="https://github.com/esteban-cz/shadcn-plus/blob/main/assets/images/icon.png?raw=true" width="100" height="100" alt="shadcn/ui Plus logo">
+  <p style="margin: 0 0 12px 0; font-size: 2.75rem;"><u><b>shadcn/plus</b></u></p>
+  <img src="https://github.com/esteban-cz/shadcn-plus/blob/main/assets/images/icon.png?raw=true" width="100" height="100" alt="shadcn/plus logo">
 </div>
 
 ## Features
 
-- Status bar shortcut: bottom-left `shadcn/ui` menu (only visible when a workspace is open).
+- Status bar shortcut: bottom-left `shadcn/plus` menu (only visible when a workspace is open).
 - Quick actions: install CLI, add one or many components, open component docs, reload registry list, open shadcn/ui docs.
 - Configurable working directory for shadcn/ui commands (relative or absolute, great for monorepos).
 - CLI install guard: skip init when `components.json` already exists.
@@ -33,7 +33,7 @@
 
 ---
 
-## shadcn/ui Plus Menu
+## shadcn/plus Menu
 
 ![To open the shadcn/ui Plus menu, click on the extension in the bottom left corner.](https://github.com/esteban-cz/shadcn-plus/blob/main/assets/demo/menu.png?raw=true)
 
@@ -60,6 +60,10 @@
 ---
 
 ## Release Notes
+
+### 1.0.3
+
+- Rename the extension from `shadcn/ui Plus` to `shadcn/plus` for consistency and simplicity.
 
 ### 1.0.2
 

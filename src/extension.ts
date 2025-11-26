@@ -508,8 +508,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.StatusBarAlignment.Left,
     1
   )
-  statusBarItem.text = '$(extensions) shadcn/ui $(diff-added)'
-  statusBarItem.tooltip = 'Open shadcn/ui commands'
+  statusBarItem.text = '$(diff-added) shadcn/plus'
+  statusBarItem.tooltip = 'Open shadcn/plus commands'
   statusBarItem.command = commands.showMenu
   const updateStatusBarVisibility = () => {
     if (hasWorkspace()) {

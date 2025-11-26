@@ -29,7 +29,7 @@ export async function executeCommand(
   let terminal = vscode.window.activeTerminal
   if (createNew || !terminal) {
     const terminalOptions: vscode.TerminalOptions = {
-      name: name ? name : 'shadcn/ui Plus',
+      name: name ? name : 'shadcn/plus',
       cwd
     }
     terminal = vscode.window.createTerminal(terminalOptions)
