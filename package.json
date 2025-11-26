@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "shadcn-plus",
   "displayName": "shadcn/ui Plus",
   "description": "Add components from shadcn/ui directly from VS Code",
@@ -62,6 +62,11 @@
     "configuration": {
       "title": "shadcn/ui Plus",
       "properties": {
+        "shadcn-ui.commandWorkingDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Optional working directory for shadcn/ui commands. Relative paths resolve from the first workspace folder; absolute paths are supported."
+        },
         "shadcn-ui.baseColor": {
           "type": "string",
           "enum": [

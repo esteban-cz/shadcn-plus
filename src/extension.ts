@@ -23,8 +23,11 @@ import {
   getRegistry,
   shadCnDocUrl
 } from './utils/registry'
-import { executeCommand, getFileStat } from './utils/vscode'
-import { logCmd } from './utils/logs'
+import {
+  executeCommand,
+  getFileStat,
+  getConfiguredCommandCwd
+} from './utils/vscode'
 import type { BaseColor, Components } from './utils/registry'
 
 const commands = {
@@ -161,11 +164,22 @@ class InstallShadcnComponentTool
         ])
       }
 
-      const installCmd = await getInstallCmd(id)
+      const commandCwd = await getConfiguredCommandCwd()
+      if (!commandCwd) {
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            'Open a folder or workspace to install components.'
+          )
+        ])
+      }
+
+      const installCmd = await getInstallCmd(id, commandCwd)
 
       const [terminal, execution, stream] = await executeCommand(
         installCmd,
-        InstallShadcnComponentTool.newTerminal
+        InstallShadcnComponentTool.newTerminal,
+        undefined,
+        commandCwd
       )
       if (!execution || !stream) {
         return new vscode.LanguageModelToolResult([
@@ -174,7 +188,6 @@ class InstallShadcnComponentTool
           )
         ])
       }
-      await logCmd(installCmd)
       const output: string[] = []
       const componentList = id.join(', ')
       let duplicateCount = 0
@@ -345,7 +358,12 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
-      const componentsFile = await getFileStat('components.json')
+      const commandCwd = await getConfiguredCommandCwd()
+      if (!commandCwd) {
+        return
+      }
+
+      const componentsFile = await getFileStat('components.json', commandCwd)
       if (componentsFile) {
         vscode.window.showInformationMessage(
           'shadcn/ui is already initialized (components.json found). Skipping init.'
@@ -374,10 +392,9 @@ export function activate(context: vscode.ExtensionContext) {
         baseColor = selectedBaseColor.value
       }
 
-      const intCmd = await getInitCmd(baseColor)
+      const intCmd = await getInitCmd(baseColor, commandCwd)
 
-      executeCommand(intCmd)
-      await logCmd(intCmd)
+      executeCommand(intCmd, true, undefined, commandCwd)
     }),
 
     vscode.commands.registerCommand(commands.addNewComponent, async () => {
@@ -387,6 +404,11 @@ export function activate(context: vscode.ExtensionContext) {
 
       const hasRegistryData = await checkRegistryData()
       if (!hasRegistryData || !registryData) {
+        return
+      }
+
+      const commandCwd = await getConfiguredCommandCwd()
+      if (!commandCwd) {
         return
       }
 
@@ -401,10 +423,12 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
-      const installCmd = await getInstallCmd([selectedComponent.label])
+      const installCmd = await getInstallCmd(
+        [selectedComponent.label],
+        commandCwd
+      )
 
-      executeCommand(installCmd)
-      await logCmd(installCmd)
+      executeCommand(installCmd, true, undefined, commandCwd)
     }),
 
     vscode.commands.registerCommand(
@@ -416,6 +440,11 @@ export function activate(context: vscode.ExtensionContext) {
 
         const hasRegistryData = await checkRegistryData()
         if (!hasRegistryData || !registryData) {
+          return
+        }
+
+        const commandCwd = await getConfiguredCommandCwd()
+        if (!commandCwd) {
           return
         }
 
@@ -434,10 +463,9 @@ export function activate(context: vscode.ExtensionContext) {
         const selectedComponent = selectedComponents.map(
           (component: { label: string }) => component.label
         )
-        const installCmd = await getInstallCmd(selectedComponent)
+        const installCmd = await getInstallCmd(selectedComponent, commandCwd)
 
-        executeCommand(installCmd)
-        await logCmd(installCmd)
+        executeCommand(installCmd, true, undefined, commandCwd)
       }
     ),
 
@@ -461,7 +489,6 @@ export function activate(context: vscode.ExtensionContext) {
       const componentDocLink = getComponentDocLink(selectedComponent.label)
 
       vscode.env.openExternal(vscode.Uri.parse(componentDocLink))
-      await logCmd(componentDocLink)
     }),
     vscode.commands.registerCommand(commands.reloadComponentList, async () => {
       registryData = undefined
@@ -471,11 +498,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       vscode.window.showInformationMessage('shadcn/ui: Reloaded components')
-      await logCmd('reload registry data')
     }),
     vscode.commands.registerCommand(commands.gotoDoc, async () => {
       vscode.env.openExternal(vscode.Uri.parse(shadCnDocUrl))
-      await logCmd(shadCnDocUrl)
     })
   ]
 

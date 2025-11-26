@@ -15,6 +15,7 @@
 //     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import fetch from 'node-fetch'
+import * as vscode from 'vscode'
 
 import { to } from '.'
 import { detectPackageManager } from './vscode'
@@ -66,8 +67,8 @@ export const getRegistry = async (): Promise<Components | null> => {
   return components
 }
 
-export const getInstallCmd = async (components: string[]) => {
-  const packageManager = await detectPackageManager()
+export const getInstallCmd = async (components: string[], cwd?: vscode.Uri) => {
+  const packageManager = await detectPackageManager(cwd)
   const componentStr = components.join(' ')
 
   if (packageManager === 'bun') {
@@ -81,8 +82,11 @@ export const getInstallCmd = async (components: string[]) => {
   return `npx shadcn@latest add ${componentStr}`
 }
 
-export const getInitCmd = async (baseColor: BaseColor = 'zinc') => {
-  const packageManager = await detectPackageManager()
+export const getInitCmd = async (
+  baseColor: BaseColor = 'zinc',
+  cwd?: vscode.Uri
+) => {
+  const packageManager = await detectPackageManager(cwd)
   const baseColorFlag = `--base-color=${baseColor}`
 
   if (packageManager === 'bun') {

@@ -15,18 +15,24 @@
 //     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import * as vscode from 'vscode'
+import * as path from 'path'
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun'
 export async function executeCommand(
   cmd: string,
   createNew = true,
-  name?: string
+  name?: string,
+  cwd?: vscode.Uri
 ): Promise<
   [vscode.Terminal, vscode.TerminalShellExecution?, AsyncIterable<string>?]
 > {
   let terminal = vscode.window.activeTerminal
   if (createNew || !terminal) {
-    terminal = vscode.window.createTerminal(name ? name : 'shadcn/ui Plus')
+    const terminalOptions: vscode.TerminalOptions = {
+      name: name ? name : 'shadcn/ui Plus',
+      cwd
+    }
+    terminal = vscode.window.createTerminal(terminalOptions)
   }
 
   terminal.show()
@@ -72,9 +78,10 @@ export async function executeCommand(
   }
 }
 
-export const getFileStat = async (fileName: string) => {
-  // Get the currently opened workspace folders
-  const workspaceFolders = vscode.workspace.workspaceFolders
+export const getFileStat = async (fileName: string, baseUri?: vscode.Uri) => {
+  const workspaceFolders = baseUri
+    ? [{ uri: baseUri } as vscode.WorkspaceFolder]
+    : vscode.workspace.workspaceFolders
 
   if (!workspaceFolders) {
     return null
@@ -87,27 +94,61 @@ export const getFileStat = async (fileName: string) => {
 
       return fileMetadata
     } catch (error) {
-      console.error(error)
-      return null
+      // try next workspace folder
     }
   }
+
+  return null
 }
 
-export const detectPackageManager = async (): Promise<PackageManager> => {
-  const bunLockExists = await getFileStat('bun.lockb')
+export const detectPackageManager = async (
+  baseUri?: vscode.Uri
+): Promise<PackageManager> => {
+  const bunLockExists = await getFileStat('bun.lockb', baseUri)
   if (bunLockExists) {
     return 'bun'
   }
 
-  const pnpmLockExists = await getFileStat('pnpm-lock.yaml')
+  const pnpmLockExists = await getFileStat('pnpm-lock.yaml', baseUri)
   if (pnpmLockExists) {
     return 'pnpm'
   }
 
-  const yarnLockExists = await getFileStat('yarn.lock')
+  const yarnLockExists = await getFileStat('yarn.lock', baseUri)
   if (yarnLockExists) {
     return 'yarn'
   }
 
   return 'npm'
+}
+
+export const getConfiguredCommandCwd = async (): Promise<vscode.Uri | null> => {
+  const workspaceFolders = vscode.workspace.workspaceFolders
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    return null
+  }
+
+  const config = vscode.workspace.getConfiguration('shadcn-ui')
+  const configuredPath = config
+    .get<string>('commandWorkingDirectory', '')
+    .trim()
+
+  const rootUri = workspaceFolders[0].uri
+  if (!configuredPath) {
+    return rootUri
+  }
+
+  const targetUri = path.isAbsolute(configuredPath)
+    ? vscode.Uri.file(configuredPath)
+    : vscode.Uri.joinPath(rootUri, configuredPath)
+
+  try {
+    await vscode.workspace.fs.stat(targetUri)
+    return targetUri
+  } catch (error) {
+    vscode.window.showWarningMessage(
+      `Configured shadcn/ui working directory "${configuredPath}" not found. Using workspace root instead.`
+    )
+    return rootUri
+  }
 }
