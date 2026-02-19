@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.6 - 02/19/2026
+
+- Updated dependencies
+- Updated `components.json` validation
+
 ## v1.0.5 - 02/19/2026
 
 - README.md update

@@ -397,7 +397,7 @@ export function activate(context: vscode.ExtensionContext) {
     ]
 
     if (!hasComponentsFile) {
-      return [cliItem, ...baseItems]
+      return [cliItem, baseItems[2], baseItems[3], baseItems[4]]
     }
 
     return [

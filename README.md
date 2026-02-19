@@ -67,6 +67,11 @@
 
 ## Release Notes
 
+## v1.0.6
+
+- Updated dependencies
+- Updated `components.json` validation
+
 ## v1.0.5
 
 - README.md update
