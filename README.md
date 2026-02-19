@@ -34,6 +34,10 @@
 
 ---
 
+## Demo
+
+![Demo video of installing the CLI.](https://github.com/esteban-cz/shadcn-plus/blob/main/assets/demo/videos/install-cli.gif?raw=true)
+
 ## shadcn/plus Menu
 
 ![To open the shadcn/ui Plus menu, click on the extension in the bottom left corner.](https://github.com/esteban-cz/shadcn-plus/blob/main/assets/demo/menu.png?raw=true)
@@ -62,6 +66,10 @@
 ---
 
 ## Release Notes
+
+## v1.0.5
+
+- README.md update
 
 ## v1.0.4
 

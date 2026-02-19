@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.5 - 02/19/2026
+
+- README.md update
+
 ## v1.0.4 - 02/19/2026
 
 - Added adaptive CLI menu behavior: show `Install CLI` before setup and `Reinstall CLI` once `components.json` exists.

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.5",
   "name": "shadcn-plus",
   "displayName": "shadcn/plus",
   "description": "VS Code extension for shadcn/ui. Init and add one or multiple components directly from VS Code.",
