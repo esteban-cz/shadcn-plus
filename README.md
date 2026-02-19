@@ -26,10 +26,11 @@
 ## Features
 
 - Status bar shortcut: bottom-left `shadcn/plus` menu (only visible when a workspace is open).
-- Quick actions: install CLI, add one or many components, open component docs, reload registry list, open shadcn/ui docs.
+- Quick actions: install/reinstall CLI, add one or many components, open component docs, reload registry list, open shadcn/ui docs.
 - Configurable working directory for shadcn/ui commands (relative or absolute, great for monorepos).
-- CLI install guard: skip init when `components.json` already exists.
+- Adaptive CLI action: shows `Install CLI` before initialization, and `Reinstall CLI` when `components.json` already exists.
 - Registry caching and terminal output cleanup for clearer component installs.
+- Optional terminal auto-close after command completion.
 
 ---
 
@@ -37,9 +38,9 @@
 
 ![To open the shadcn/ui Plus menu, click on the extension in the bottom left corner.](https://github.com/esteban-cz/shadcn-plus/blob/main/assets/demo/menu.png?raw=true)
 
-## Install the shadcn/ui CLI
+## Install or Reinstall the shadcn/ui CLI
 
-![Open the shadcn/ui Plus menu and select "Install CLI"](https://github.com/esteban-cz/shadcn-plus/blob/main/assets/demo/install-cli.png?raw=true)
+![Open the shadcn/ui Plus menu and select "Install CLI" or "Reinstall CLI"](https://github.com/esteban-cz/shadcn-plus/blob/main/assets/demo/install-cli.png?raw=true)
 
 ## Add Component
 
@@ -56,10 +57,21 @@
 - `shadcn-plus.commandWorkingDirectory` (string): optional working directory for shadcn/ui commands. Leave blank to use the workspace root; relative paths resolve from the first workspace folder; absolute paths are supported.
 - `shadcn-plus.baseColor` (string): default base color passed to `shadcn/ui init`. Options: `neutral`, `gray`, `zinc` (default), `stone`, `slate`.
 - `shadcn-plus.askBaseColor` (boolean): prompt for base color each time before running `shadcn/ui init`.
+- `shadcn-plus.autoCloseTerminal` (boolean): close extension-created terminals automatically after commands finish (default: `true`).
 
 ---
 
 ## Release Notes
+
+## v1.0.4
+
+- Added adaptive CLI menu behavior: show `Install CLI` before setup and `Reinstall CLI` once `components.json` exists.
+- Added reinstall confirmation when `components.json` is already present.
+- Added command sanitization for component install names before command execution.
+- Improved registry fetch reliability with HTTP status checks, timeout handling, and retry backoff.
+- Improved terminal execution fallback behavior when shell integration is unavailable.
+- Added configurable terminal auto-close behavior for extension-created command terminals.
+- Updated docs to reflect install/reinstall CLI behavior.
 
 ### 1.0.3
 

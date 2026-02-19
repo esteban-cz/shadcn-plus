@@ -18,6 +18,17 @@ import * as vscode from 'vscode'
 import * as path from 'path'
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun'
+let hasShownShellIntegrationWarning = false
+
+const showShellIntegrationWarning = (message: string) => {
+  if (hasShownShellIntegrationWarning) {
+    return
+  }
+
+  hasShownShellIntegrationWarning = true
+  vscode.window.showWarningMessage(message)
+}
+
 export async function executeCommand(
   cmd: string,
   createNew = true,
@@ -37,10 +48,10 @@ export async function executeCommand(
 
   terminal.show()
   if (!terminal.shellIntegration) {
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
         disposable.dispose()
-        reject(new Error('Shell integration timeout'))
+        resolve()
       }, 5000)
 
       const disposable = vscode.window.onDidChangeTerminalShellIntegration(
@@ -62,20 +73,23 @@ export async function executeCommand(
   }
 
   if (terminal.shellIntegration) {
-    const res = terminal.shellIntegration.executeCommand(cmd)
-    const stream = res.read()
-    return [terminal, res, stream]
-  } else {
-    terminal.sendText(cmd)
-    vscode.window.onDidStartTerminalShellExecution((e) => {
-      const stream = e.execution.read()
-      if (e.terminal === terminal) {
-        return [terminal, e.execution, stream]
-      }
-    })
-    // if we are hitting this point, something is messed up real bad
-    return [terminal, undefined, undefined]
+    try {
+      const res = terminal.shellIntegration.executeCommand(cmd)
+      const stream = res.read()
+      return [terminal, res, stream]
+    } catch (error) {
+      console.error('Failed to execute command via shell integration', error)
+      showShellIntegrationWarning(
+        'shadcn/plus: Shell integration failed, running command with basic terminal mode.'
+      )
+    }
   }
+
+  terminal.sendText(cmd)
+  showShellIntegrationWarning(
+    'shadcn/plus: Shell integration is unavailable, so command status cannot be tracked. The terminal will stay open.'
+  )
+  return [terminal, undefined, undefined]
 }
 
 export const getFileStat = async (fileName: string, baseUri?: vscode.Uri) => {

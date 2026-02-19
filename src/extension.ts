@@ -132,15 +132,19 @@ interface InstallComponentInput {
   id: string[]
 }
 
-class InstallShadcnComponentTool
-  implements vscode.LanguageModelTool<InstallComponentInput>
-{
+type MenuQuickPickItem = vscode.QuickPickItem & { command: CommandKey }
+
+class InstallShadcnComponentTool implements vscode.LanguageModelTool<InstallComponentInput> {
   // regex patterns to clean up the output from install commands
   private static readonly ansiRegex =
     /([\u001B\u009B][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-PRZcf-nqry=><]|\u001B|\u0007)/gu
   private static readonly spinnerRegex = /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s/g
   private static readonly vscodeShellRegex = /]633;C|/g
   private static readonly newTerminal = true
+  private static readonly shouldAutoCloseTerminal = (): boolean =>
+    vscode.workspace
+      .getConfiguration('shadcn-plus')
+      .get<boolean>('autoCloseTerminal', true)
 
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<InstallComponentInput>,
@@ -225,7 +229,11 @@ class InstallShadcnComponentTool
           output.push(line)
         }
       } finally {
-        if (terminal && InstallShadcnComponentTool.newTerminal) {
+        if (
+          terminal &&
+          InstallShadcnComponentTool.newTerminal &&
+          InstallShadcnComponentTool.shouldAutoCloseTerminal()
+        ) {
           // close the terminal if it was created for us
           terminal.dispose()
         }
@@ -291,13 +299,76 @@ export function activate(context: vscode.ExtensionContext) {
     return true
   }
 
-  const quickPickItems: Array<vscode.QuickPickItem & { command: CommandKey }> =
-    [
-      {
-        label: 'Install CLI',
-        description: 'Install the shadcn/ui CLI',
-        command: 'initCli'
-      },
+  const getInstallCmdWithFeedback = async (
+    components: string[],
+    cwd: vscode.Uri
+  ): Promise<string | null> => {
+    try {
+      return await getInstallCmd(components, cwd)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Invalid component name provided.'
+      vscode.window.showErrorMessage(
+        `Failed to build install command: ${message}`
+      )
+      return null
+    }
+  }
+
+  const executeCommandWithAutoClose = async (
+    cmd: string,
+    cwd: vscode.Uri
+  ): Promise<void> => {
+    const autoCloseTerminal = vscode.workspace
+      .getConfiguration('shadcn-plus')
+      .get<boolean>('autoCloseTerminal', true)
+
+    const [terminal, execution, stream] = await executeCommand(
+      cmd,
+      true,
+      undefined,
+      cwd
+    )
+
+    if (!autoCloseTerminal) {
+      return
+    }
+
+    // If shell integration is unavailable, keep the terminal open so users can
+    // still inspect output manually.
+    if (!execution || !stream) {
+      return
+    }
+
+    void (async () => {
+      try {
+        for await (const _ of stream) {
+          // Drain stream until command finishes.
+        }
+      } finally {
+        terminal.dispose()
+      }
+    })()
+  }
+
+  const buildQuickPickItems = (
+    hasComponentsFile: boolean
+  ): MenuQuickPickItem[] => {
+    const cliItem: MenuQuickPickItem = hasComponentsFile
+      ? {
+          label: 'Reinstall CLI',
+          description: 'Re-run shadcn/ui init for an existing project',
+          command: 'initCli'
+        }
+      : {
+          label: 'Install CLI',
+          description: 'Install the shadcn/ui CLI',
+          command: 'initCli'
+        }
+
+    const baseItems: MenuQuickPickItem[] = [
       {
         label: 'Add Component',
         description: 'Add a single shadcn/ui component',
@@ -325,6 +396,20 @@ export function activate(context: vscode.ExtensionContext) {
       }
     ]
 
+    if (!hasComponentsFile) {
+      return [cliItem, ...baseItems]
+    }
+
+    return [
+      baseItems[0],
+      baseItems[1],
+      cliItem,
+      baseItems[2],
+      baseItems[3],
+      baseItems[4]
+    ]
+  }
+
   const toolDisposables = [
     vscode.lm.registerTool(
       'get_shadcnComponentList',
@@ -342,9 +427,18 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
-      const selected = await vscode.window.showQuickPick(quickPickItems, {
-        placeHolder: 'Choose a shadcn/ui action'
-      })
+      const commandCwd = await getConfiguredCommandCwd()
+      if (!commandCwd) {
+        return
+      }
+
+      const componentsFile = await getFileStat('components.json', commandCwd)
+      const selected = await vscode.window.showQuickPick(
+        buildQuickPickItems(Boolean(componentsFile)),
+        {
+          placeHolder: 'Choose a shadcn/ui action'
+        }
+      )
 
       if (!selected) {
         return
@@ -365,10 +459,15 @@ export function activate(context: vscode.ExtensionContext) {
 
       const componentsFile = await getFileStat('components.json', commandCwd)
       if (componentsFile) {
-        vscode.window.showInformationMessage(
-          'shadcn/ui is already initialized (components.json found). Skipping init.'
+        const confirmation = await vscode.window.showWarningMessage(
+          'components.json found. Re-running shadcn/ui init may overwrite parts of your existing setup.',
+          { modal: true },
+          'Reinstall CLI'
         )
-        return
+
+        if (confirmation !== 'Reinstall CLI') {
+          return
+        }
       }
 
       const config = vscode.workspace.getConfiguration('shadcn-plus')
@@ -394,7 +493,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       const intCmd = await getInitCmd(baseColor, commandCwd)
 
-      executeCommand(intCmd, true, undefined, commandCwd)
+      await executeCommandWithAutoClose(intCmd, commandCwd)
     }),
 
     vscode.commands.registerCommand(commands.addNewComponent, async () => {
@@ -423,12 +522,15 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
-      const installCmd = await getInstallCmd(
+      const installCmd = await getInstallCmdWithFeedback(
         [selectedComponent.label],
         commandCwd
       )
+      if (!installCmd) {
+        return
+      }
 
-      executeCommand(installCmd, true, undefined, commandCwd)
+      await executeCommandWithAutoClose(installCmd, commandCwd)
     }),
 
     vscode.commands.registerCommand(
@@ -463,9 +565,15 @@ export function activate(context: vscode.ExtensionContext) {
         const selectedComponent = selectedComponents.map(
           (component: { label: string }) => component.label
         )
-        const installCmd = await getInstallCmd(selectedComponent, commandCwd)
+        const installCmd = await getInstallCmdWithFeedback(
+          selectedComponent,
+          commandCwd
+        )
+        if (!installCmd) {
+          return
+        }
 
-        executeCommand(installCmd, true, undefined, commandCwd)
+        await executeCommandWithAutoClose(installCmd, commandCwd)
       }
     ),
 

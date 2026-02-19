@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.4 - 02/19/2026
+
+- Added adaptive CLI menu behavior: show `Install CLI` before setup and `Reinstall CLI` once `components.json` exists.
+- Added reinstall confirmation when `components.json` is already present.
+- Added command sanitization for component install names before command execution.
+- Improved registry fetch reliability with HTTP status checks, timeout handling, and retry backoff.
+- Improved terminal execution fallback behavior when shell integration is unavailable.
+- Added configurable terminal auto-close behavior for extension-created command terminals.
+- Updated docs to reflect install/reinstall CLI behavior.
+
 ## v1.0.3 - 11/26/2025
 
 - Rename the extension from `shadcn/ui Plus` to `shadcn/plus` for consistency and simplicity.
