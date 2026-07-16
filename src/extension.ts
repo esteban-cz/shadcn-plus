@@ -20,15 +20,22 @@ import {
   getInitCmd,
   getInstallCmd,
   getComponentDocLink,
+  getDocumentationComponents,
   getRegistry,
   shadCnDocUrl
 } from './utils/registry'
 import {
   executeCommand,
+  formatCommand,
   getFileStat,
   getConfiguredCommandCwd
 } from './utils/vscode'
-import type { BaseColor, Components } from './utils/registry'
+import type { ExecutableCommand } from './utils/vscode'
+import type {
+  ComponentLibrary,
+  Components,
+  Preset
+} from './utils/registry'
 
 const commands = {
   initCli: 'shadcn-plus.initCli',
@@ -40,31 +47,60 @@ const commands = {
   showMenu: 'shadcn-plus.showMenu'
 } as const
 type CommandKey = keyof typeof commands
-const baseColorValues: BaseColor[] = [
-  'neutral',
-  'gray',
-  'zinc',
-  'stone',
-  'slate'
+const componentLibraryValues: ComponentLibrary[] = ['base', 'radix']
+const componentLibraryQuickPickItems: Array<
+  vscode.QuickPickItem & { value: ComponentLibrary }
+> = [
+  {
+    label: 'Base',
+    description: 'Recommended for new projects',
+    value: 'base'
+  },
+  {
+    label: 'Radix',
+    description: 'Use Radix UI primitives',
+    value: 'radix'
+  }
 ]
-const baseColorQuickPickItems: Array<
-  vscode.QuickPickItem & { value: BaseColor }
-> = baseColorValues.map((value) => ({
+const presetValues: Preset[] = [
+  'vega',
+  'nova',
+  'maia',
+  'lyra',
+  'mira',
+  'luma',
+  'sera',
+  'rhea'
+]
+const presetQuickPickItems: Array<
+  vscode.QuickPickItem & { value: Preset }
+> = presetValues.map((value) => ({
   label: value.charAt(0).toUpperCase() + value.slice(1),
   value
 }))
-const normalizeBaseColor = (color?: string): BaseColor => {
-  const normalized = (color ?? '').toLowerCase()
-  if (baseColorValues.includes(normalized as BaseColor)) {
-    return normalized as BaseColor
+const normalizeComponentLibrary = (value?: string): ComponentLibrary => {
+  const normalized = (value ?? '').toLowerCase()
+  if (componentLibraryValues.includes(normalized as ComponentLibrary)) {
+    return normalized as ComponentLibrary
   }
-  return 'zinc'
+  return 'base'
+}
+const normalizePreset = (value?: string): Preset => {
+  const normalized = (value ?? '').toLowerCase()
+  if (presetValues.includes(normalized as Preset)) {
+    return normalized as Preset
+  }
+  return 'nova'
 }
 
 class GetShadcnComponentListTool implements vscode.LanguageModelTool<{}> {
   private static registryCache: { data: Components; timestamp: number } | null =
     null
   private static readonly cacheTtl = 5 * 60 * 1000 // 5 minutes
+
+  static clearCache(): void {
+    GetShadcnComponentListTool.registryCache = null
+  }
 
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<{}>,
@@ -139,12 +175,21 @@ class InstallShadcnComponentTool implements vscode.LanguageModelTool<InstallComp
   private static readonly ansiRegex =
     /([\u001B\u009B][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-PRZcf-nqry=><]|\u001B|\u0007)/gu
   private static readonly spinnerRegex = /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s/g
-  private static readonly vscodeShellRegex = /]633;C|/g
-  private static readonly newTerminal = true
-  private static readonly shouldAutoCloseTerminal = (): boolean =>
-    vscode.workspace
-      .getConfiguration('shadcn-plus')
-      .get<boolean>('autoCloseTerminal', true)
+
+  constructor(private readonly outputChannel: vscode.OutputChannel) {}
+
+  private static cleanOutput(output: string): string {
+    return output
+      .split(/\r?\n/)
+      .map((line) =>
+        line
+          .replace(InstallShadcnComponentTool.ansiRegex, '')
+          .replace(InstallShadcnComponentTool.spinnerRegex, '')
+          .trim()
+      )
+      .filter((line) => line.length > 0)
+      .join('\n')
+  }
 
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<InstallComponentInput>,
@@ -179,75 +224,19 @@ class InstallShadcnComponentTool implements vscode.LanguageModelTool<InstallComp
 
       const installCmd = await getInstallCmd(id, commandCwd)
 
-      const [terminal, execution, stream] = await executeCommand(
+      const commandOutput = await executeCommand(
         installCmd,
-        InstallShadcnComponentTool.newTerminal,
-        undefined,
-        commandCwd
+        commandCwd,
+        this.outputChannel,
+        token
       )
-      if (!execution || !stream) {
-        return new vscode.LanguageModelToolResult([
-          new vscode.LanguageModelTextPart(
-            'Failed to execute the installation command.'
-          )
-        ])
-      }
-      const output: string[] = []
       const componentList = id.join(', ')
-      let duplicateCount = 0
-      let lastLine = ''
-
-      try {
-        for await (let line of stream) {
-          if (token.isCancellationRequested) {
-            break
-          }
-
-          // clean up the line before pushing it to the output
-          line = line
-            // first regex to remove ANSI escape codes/bash colors
-            .replace(InstallShadcnComponentTool.ansiRegex, '')
-            // second regex to remove the spinners
-            .replace(InstallShadcnComponentTool.spinnerRegex, '')
-            // third regex to remove VSCode shell integration stuff
-            .replace(InstallShadcnComponentTool.vscodeShellRegex, '')
-            .trim()
-          if (line === '') {
-            continue
-          }
-          if (line === output[output.length - 1]) {
-            duplicateCount++
-            lastLine = line
-            continue // skip duplicate lines
-          }
-          // add indication for duplicate
-          if (duplicateCount > 0) {
-            const lastOutputIndex = output.length - 1
-            output[lastOutputIndex] = `${lastLine} [x${duplicateCount + 1}]`
-            duplicateCount = 0
-          }
-          output.push(line)
-        }
-      } finally {
-        if (
-          terminal &&
-          InstallShadcnComponentTool.newTerminal &&
-          InstallShadcnComponentTool.shouldAutoCloseTerminal()
-        ) {
-          // close the terminal if it was created for us
-          terminal.dispose()
-        }
-      }
-      if (duplicateCount > 0) {
-        const lastOutputIndex = output.length - 1
-        output[lastOutputIndex] = `${lastLine} [x${duplicateCount + 1}]`
-      }
 
       return new vscode.LanguageModelToolResult([
         new vscode.LanguageModelTextPart(
           JSON.stringify({
-            output: output.join('\n'),
-            command: installCmd,
+            output: InstallShadcnComponentTool.cleanOutput(commandOutput),
+            command: formatCommand(installCmd),
             componentList
           })
         )
@@ -269,6 +258,7 @@ class InstallShadcnComponentTool implements vscode.LanguageModelTool<InstallComp
 
 export function activate(context: vscode.ExtensionContext) {
   let registryData: Components | undefined
+  const outputChannel = vscode.window.createOutputChannel('shadcn/plus')
 
   const hasWorkspace = (): boolean =>
     Boolean(vscode.workspace.workspaceFolders?.length)
@@ -302,7 +292,7 @@ export function activate(context: vscode.ExtensionContext) {
   const getInstallCmdWithFeedback = async (
     components: string[],
     cwd: vscode.Uri
-  ): Promise<string | null> => {
+  ): Promise<ExecutableCommand | null> => {
     try {
       return await getInstallCmd(components, cwd)
     } catch (error) {
@@ -317,40 +307,20 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  const executeCommandWithAutoClose = async (
-    cmd: string,
-    cwd: vscode.Uri
+  const executeCommandWithFeedback = async (
+    command: ExecutableCommand,
+    cwd: vscode.Uri,
+    label: string
   ): Promise<void> => {
-    const autoCloseTerminal = vscode.workspace
-      .getConfiguration('shadcn-plus')
-      .get<boolean>('autoCloseTerminal', true)
-
-    const [terminal, execution, stream] = await executeCommand(
-      cmd,
-      true,
-      undefined,
-      cwd
-    )
-
-    if (!autoCloseTerminal) {
-      return
+    try {
+      await executeCommand(command, cwd, outputChannel)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      outputChannel.appendLine(`[error] ${message}`)
+      vscode.window.showErrorMessage(
+        `shadcn/plus: ${label} failed. See the shadcn/plus Output channel for details.`
+      )
     }
-
-    // If shell integration is unavailable, keep the terminal open so users can
-    // still inspect output manually.
-    if (!execution || !stream) {
-      return
-    }
-
-    void (async () => {
-      try {
-        for await (const _ of stream) {
-          // Drain stream until command finishes.
-        }
-      } finally {
-        terminal.dispose()
-      }
-    })()
   }
 
   const buildQuickPickItems = (
@@ -417,7 +387,7 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.lm.registerTool(
       'install_shadcnComponent',
-      new InstallShadcnComponentTool()
+      new InstallShadcnComponentTool(outputChannel)
     )
   ]
 
@@ -471,29 +441,56 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       const config = vscode.workspace.getConfiguration('shadcn-plus')
-      const askBaseColor = config.get<boolean>('askBaseColor', false)
-      let baseColor = normalizeBaseColor(
-        config.get<string>('baseColor', 'zinc')
+      const askComponentLibrary = config.get<boolean>(
+        'askComponentLibrary',
+        false
       )
+      const askPreset = config.get<boolean>('askPreset', false)
+      let componentLibrary = normalizeComponentLibrary(
+        config.get<string>('componentLibrary', 'base')
+      )
+      let preset = normalizePreset(config.get<string>('preset', 'nova'))
 
-      if (askBaseColor) {
-        const selectedBaseColor = await vscode.window.showQuickPick(
-          baseColorQuickPickItems,
+      if (askComponentLibrary) {
+        const selectedComponentLibrary = await vscode.window.showQuickPick(
+          componentLibraryQuickPickItems,
           {
-            placeHolder: 'Select base color for shadcn/ui'
+            placeHolder: 'Select the component library for shadcn/ui'
           }
         )
 
-        if (!selectedBaseColor) {
+        if (!selectedComponentLibrary) {
           return
         }
 
-        baseColor = selectedBaseColor.value
+        componentLibrary = selectedComponentLibrary.value
       }
 
-      const intCmd = await getInitCmd(baseColor, commandCwd)
+      if (askPreset) {
+        const selectedPreset = await vscode.window.showQuickPick(
+          presetQuickPickItems,
+          {
+            placeHolder: 'Select the preset for shadcn/ui'
+          }
+        )
 
-      await executeCommandWithAutoClose(intCmd, commandCwd)
+        if (!selectedPreset) {
+          return
+        }
+
+        preset = selectedPreset.value
+      }
+
+      const initCmd = await getInitCmd(
+        {
+          componentLibrary,
+          preset,
+          reinstall: Boolean(componentsFile)
+        },
+        commandCwd
+      )
+
+      await executeCommandWithFeedback(initCmd, commandCwd, 'Initialization')
     }),
 
     vscode.commands.registerCommand(commands.addNewComponent, async () => {
@@ -530,7 +527,11 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
-      await executeCommandWithAutoClose(installCmd, commandCwd)
+      await executeCommandWithFeedback(
+        installCmd,
+        commandCwd,
+        'Component installation'
+      )
     }),
 
     vscode.commands.registerCommand(
@@ -573,7 +574,11 @@ export function activate(context: vscode.ExtensionContext) {
           return
         }
 
-        await executeCommandWithAutoClose(installCmd, commandCwd)
+        await executeCommandWithFeedback(
+          installCmd,
+          commandCwd,
+          'Component installation'
+        )
       }
     ),
 
@@ -583,8 +588,9 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
 
+      const documentationComponents = getDocumentationComponents(registryData)
       const selectedComponent = await vscode.window.showQuickPick(
-        registryData,
+        documentationComponents,
         {
           matchOnDescription: true
         }
@@ -600,6 +606,7 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand(commands.reloadComponentList, async () => {
       registryData = undefined
+      GetShadcnComponentListTool.clearCache()
       const hasRegistryData = await checkRegistryData()
       if (!hasRegistryData) {
         return
@@ -629,6 +636,7 @@ export function activate(context: vscode.ExtensionContext) {
   updateStatusBarVisibility()
 
   context.subscriptions.push(
+    outputChannel,
     statusBarItem,
     vscode.workspace.onDidChangeWorkspaceFolders(updateStatusBarVisibility),
     ...disposables,

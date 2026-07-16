@@ -17,11 +17,19 @@
 import * as vscode from 'vscode'
 
 import { detectPackageManager } from './vscode'
+import type { ExecutableCommand, PackageManager } from './vscode'
 
-type OgComponent = {
-  type: 'components:ui'
+type RegistryFile = {
+  path: string
+  type: string
+  target?: string
+  content?: string
+}
+
+type RegistryItem = {
+  type: 'registry:ui'
   name: string
-  files: string[]
+  files?: RegistryFile[]
   dependencies?: string[]
   registryDependencies?: string[]
 }
@@ -34,15 +42,46 @@ type Component = {
 export const shadCnDocUrl = 'https://ui.shadcn.com/docs'
 
 export type Components = Component[]
-export type BaseColor = 'neutral' | 'gray' | 'zinc' | 'stone' | 'slate'
+export type ComponentLibrary = 'base' | 'radix'
+export type Preset =
+  | 'vega'
+  | 'nova'
+  | 'maia'
+  | 'lyra'
+  | 'mira'
+  | 'luma'
+  | 'sera'
+  | 'rhea'
+
+export type InitOptions = {
+  componentLibrary?: ComponentLibrary
+  preset?: Preset
+  reinstall?: boolean
+}
+
 const registryUrl = 'https://ui.shadcn.com/r/index.json'
 const registryRequestTimeoutMs = 8000
 const maxRegistryAttempts = 3
 const retryBackoffMs = 500
 const validComponentNameRegex = /^[a-z0-9][a-z0-9-]*$/i
-
-const shellEscapeArg = (value: string): string =>
-  `'${value.replace(/'/g, `'\\''`)}'`
+const documentationOnlyComponents: Components = [
+  {
+    label: 'data-table',
+    dependencies: 'Documentation guide (uses table and TanStack Table)'
+  },
+  {
+    label: 'date-picker',
+    dependencies: 'Documentation guide (uses calendar and popover)'
+  },
+  {
+    label: 'toast',
+    dependencies: 'Deprecated documentation (use sonner instead)'
+  },
+  {
+    label: 'typography',
+    dependencies: 'Documentation redirects to Typeset'
+  }
+]
 
 const sanitizeComponentNames = (components: string[]): string[] => {
   const normalizedComponents = components.map((component) => component.trim())
@@ -70,6 +109,44 @@ const delay = (ms: number) =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, ms)
   })
+
+const isRegistryUiItem = (value: unknown): value is RegistryItem => {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const item = value as Partial<RegistryItem>
+  return item.type === 'registry:ui' && typeof item.name === 'string'
+}
+
+const getShadcnRunner = (
+  packageManager: PackageManager
+): ExecutableCommand => {
+  if (packageManager === 'bun') {
+    return { command: 'bunx', args: ['--bun', 'shadcn@latest'] }
+  }
+
+  if (packageManager === 'pnpm') {
+    return { command: 'pnpm', args: ['dlx', 'shadcn@latest'] }
+  }
+
+  if (packageManager === 'yarn') {
+    return { command: 'yarn', args: ['dlx', 'shadcn@latest'] }
+  }
+
+  return { command: 'npx', args: ['--yes', 'shadcn@latest'] }
+}
+
+const buildShadcnCommand = (
+  packageManager: PackageManager,
+  args: string[]
+): ExecutableCommand => {
+  const runner = getShadcnRunner(packageManager)
+  return {
+    command: runner.command,
+    args: [...runner.args, ...args]
+  }
+}
 
 export const getRegistry = async (): Promise<Components | null> => {
   let lastError: unknown = null
@@ -99,14 +176,18 @@ export const getRegistry = async (): Promise<Components | null> => {
         throw new Error('Registry response is not an array.')
       }
 
-      return (data as OgComponent[]).map((component) => ({
+      const components = data.filter(isRegistryUiItem).map((component) => ({
         label: component.name,
         dependencies: `dependencies: ${
-          component.dependencies
-            ? component.dependencies.join(' ')
-            : 'no dependency'
+          component.dependencies?.join(' ') || 'no dependency'
         }`
       }))
+
+      if (components.length === 0) {
+        throw new Error('Registry response contains no UI components.')
+      }
+
+      return components
     } catch (error) {
       lastError = error
 
@@ -123,40 +204,57 @@ export const getRegistry = async (): Promise<Components | null> => {
   return null
 }
 
-export const getInstallCmd = async (components: string[], cwd?: vscode.Uri) => {
+export const getInstallCmd = async (
+  components: string[],
+  cwd?: vscode.Uri
+): Promise<ExecutableCommand> => {
   const packageManager = await detectPackageManager(cwd)
   const safeComponents = sanitizeComponentNames(components)
-  const componentStr = safeComponents.map(shellEscapeArg).join(' ')
 
-  if (packageManager === 'bun') {
-    return `bunx --bun shadcn@latest add ${componentStr}`
-  }
-
-  if (packageManager === 'pnpm') {
-    return `pnpm dlx shadcn@latest add ${componentStr}`
-  }
-
-  return `npx shadcn@latest add ${componentStr}`
+  return buildShadcnCommand(packageManager, [
+    'add',
+    ...safeComponents,
+    '--yes'
+  ])
 }
 
 export const getInitCmd = async (
-  baseColor: BaseColor = 'zinc',
+  options: InitOptions = {},
   cwd?: vscode.Uri
 ) => {
   const packageManager = await detectPackageManager(cwd)
-  const baseColorFlag = `--base-color=${baseColor}`
+  const componentLibrary = options.componentLibrary ?? 'base'
+  const preset = options.preset ?? 'nova'
+  const initArgs = ['init', '--base', componentLibrary, '--preset', preset]
 
-  if (packageManager === 'bun') {
-    return `bunx --bun shadcn@latest init ${baseColorFlag}`
+  if (options.reinstall) {
+    initArgs.push('--force', '--reinstall')
   }
 
-  if (packageManager === 'pnpm') {
-    return `pnpm dlx shadcn@latest init ${baseColorFlag}`
+  initArgs.push('--yes')
+  return buildShadcnCommand(packageManager, initArgs)
+}
+
+export const getDocumentationComponents = (
+  registryComponents: Components
+): Components => {
+  const componentsByName = new Map(
+    registryComponents.map((component) => [component.label, component])
+  )
+
+  for (const component of documentationOnlyComponents) {
+    componentsByName.set(component.label, component)
   }
 
-  return `npx shadcn@latest init ${baseColorFlag}`
+  return [...componentsByName.values()].sort((a, b) =>
+    a.label.localeCompare(b.label)
+  )
 }
 
 export const getComponentDocLink = (component: string) => {
+  if (component === 'typography') {
+    return `${shadCnDocUrl}/typeset`
+  }
+
   return `${shadCnDocUrl}/components/${component}`
 }

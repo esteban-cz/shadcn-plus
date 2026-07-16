@@ -29,8 +29,8 @@
 - Quick actions: install/reinstall CLI, add one or many components, open component docs, reload registry list, open shadcn/ui docs.
 - Configurable working directory for shadcn/ui commands (relative or absolute, great for monorepos).
 - Adaptive CLI action: shows `Install CLI` before initialization, and `Reinstall CLI` when `components.json` already exists.
-- Registry caching and terminal output cleanup for clearer component installs.
-- Optional terminal auto-close after command completion.
+- Registry caching and a dedicated Output channel for clean command logs.
+- Non-interactive init and component installation without temporary terminals.
 
 ---
 
@@ -59,13 +59,24 @@
 ## Settings
 
 - `shadcn-plus.commandWorkingDirectory` (string): optional working directory for shadcn/ui commands. Leave blank to use the workspace root; relative paths resolve from the first workspace folder; absolute paths are supported.
-- `shadcn-plus.baseColor` (string): default base color passed to `shadcn/ui init`. Options: `neutral`, `gray`, `zinc` (default), `stone`, `slate`.
-- `shadcn-plus.askBaseColor` (boolean): prompt for base color each time before running `shadcn/ui init`.
-- `shadcn-plus.autoCloseTerminal` (boolean): close extension-created terminals automatically after commands finish (default: `true`).
+- `shadcn-plus.componentLibrary` (string): component library passed to `shadcn/ui init`. Options: `base` (default and recommended) or `radix`.
+- `shadcn-plus.askComponentLibrary` (boolean): prompt for the component library each time before running `shadcn/ui init`.
+- `shadcn-plus.preset` (string): preset passed to `shadcn/ui init`. Options: `vega`, `nova` (default), `maia`, `lyra`, `mira`, `luma`, `sera`, or `rhea`.
+- `shadcn-plus.askPreset` (boolean): prompt for the preset each time before running `shadcn/ui init`.
 
 ---
 
 ## Release Notes
+
+## v1.0.7
+
+- Updated initialization for the latest shadcn CLI with Base/Radix component-library and preset selection.
+- Added the current Vega, Nova, Maia, Lyra, Mira, Luma, Sera, and Rhea presets.
+- Added Yarn CLI commands and modern Bun lockfile detection.
+- Updated registry parsing for the current `registry:ui` schema.
+- Added Data Table, Date Picker, deprecated Toast, and Typography/Typeset to the documentation picker.
+- Made the component-list reload action clear both extension and language-model caches.
+- Moved shadcn commands from temporary terminals to the dedicated `shadcn/plus` Output channel.
 
 ## v1.0.6
 

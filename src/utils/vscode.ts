@@ -16,80 +16,88 @@
 
 import * as vscode from 'vscode'
 import * as path from 'path'
+import { spawn } from 'child_process'
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun'
-let hasShownShellIntegrationWarning = false
-
-const showShellIntegrationWarning = (message: string) => {
-  if (hasShownShellIntegrationWarning) {
-    return
-  }
-
-  hasShownShellIntegrationWarning = true
-  vscode.window.showWarningMessage(message)
+export type ExecutableCommand = {
+  command: string
+  args: string[]
 }
 
+const formatArgument = (argument: string): string =>
+  /^[a-z0-9@/_.:-]+$/i.test(argument) ? argument : JSON.stringify(argument)
+
+export const formatCommand = (command: ExecutableCommand): string =>
+  [command.command, ...command.args].map(formatArgument).join(' ')
+
 export async function executeCommand(
-  cmd: string,
-  createNew = true,
-  name?: string,
-  cwd?: vscode.Uri
-): Promise<
-  [vscode.Terminal, vscode.TerminalShellExecution?, AsyncIterable<string>?]
-> {
-  let terminal = vscode.window.activeTerminal
-  if (createNew || !terminal) {
-    const terminalOptions: vscode.TerminalOptions = {
-      name: name ? name : 'shadcn/plus',
-      cwd
-    }
-    terminal = vscode.window.createTerminal(terminalOptions)
+  executable: ExecutableCommand,
+  cwd: vscode.Uri,
+  output: vscode.OutputChannel,
+  token?: vscode.CancellationToken
+): Promise<string> {
+  if (token?.isCancellationRequested) {
+    throw new Error('Operation was cancelled')
   }
 
-  terminal.show()
-  if (!terminal.shellIntegration) {
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        disposable.dispose()
-        resolve()
-      }, 5000)
+  output.show(true)
+  output.appendLine(`> ${formatCommand(executable)} (cwd: ${cwd.fsPath})`)
 
-      const disposable = vscode.window.onDidChangeTerminalShellIntegration(
-        (e) => {
-          if (e.terminal === terminal) {
-            clearTimeout(timeout)
-            disposable.dispose()
-            resolve()
-          }
-        }
-      )
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(executable.command, executable.args, {
+      cwd: cwd.fsPath,
+      shell: process.platform === 'win32'
+    })
+    let commandOutput = ''
+    let settled = false
 
-      if (terminal?.shellIntegration) {
-        clearTimeout(timeout)
-        disposable.dispose()
-        resolve()
+    const appendOutput = (data: Buffer): void => {
+      const text = data.toString()
+      commandOutput += text
+      output.append(text)
+    }
+
+    child.stdout?.on('data', appendOutput)
+    child.stderr?.on('data', appendOutput)
+
+    const cancellationDisposable = token?.onCancellationRequested(() => {
+      child.kill()
+    })
+
+    const finish = (error?: Error): void => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      cancellationDisposable?.dispose()
+      output.appendLine('')
+
+      if (error) {
+        reject(error)
+      } else {
+        resolve(commandOutput)
+      }
+    }
+
+    child.on('error', (error) => {
+      finish(error)
+    })
+
+    child.on('close', (code) => {
+      if (token?.isCancellationRequested) {
+        finish(new Error('Operation was cancelled'))
+      } else if (code === 0) {
+        finish()
+      } else {
+        finish(
+          new Error(
+            `${formatCommand(executable)} exited with code ${code ?? 'unknown'}`
+          )
+        )
       }
     })
-  }
-
-  if (terminal.shellIntegration) {
-    try {
-      const res = terminal.shellIntegration.executeCommand(cmd)
-      const stream = res.read()
-      return [terminal, res, stream]
-    } catch (error) {
-      console.error('Failed to execute command via shell integration', error)
-      showShellIntegrationWarning(
-        'shadcn/plus: Shell integration failed, running command with basic terminal mode.'
-      )
-    }
-  }
-
-  terminal.sendText(cmd)
-  showShellIntegrationWarning(
-    'shadcn/plus: Shell integration is unavailable, so command status cannot be tracked. The terminal will stay open.'
-  )
-  return [terminal, undefined, undefined]
+  })
 }
 
 export const getFileStat = async (fileName: string, baseUri?: vscode.Uri) => {
@@ -118,7 +126,9 @@ export const getFileStat = async (fileName: string, baseUri?: vscode.Uri) => {
 export const detectPackageManager = async (
   baseUri?: vscode.Uri
 ): Promise<PackageManager> => {
-  const bunLockExists = await getFileStat('bun.lockb', baseUri)
+  const bunLockExists =
+    (await getFileStat('bun.lock', baseUri)) ??
+    (await getFileStat('bun.lockb', baseUri))
   if (bunLockExists) {
     return 'bun'
   }

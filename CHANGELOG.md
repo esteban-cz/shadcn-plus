@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.7 - 07/16/2026
+
+- Updated initialization for the latest shadcn CLI with Base/Radix component-library and preset selection.
+- Added the current Vega, Nova, Maia, Lyra, Mira, Luma, Sera, and Rhea presets.
+- Added Yarn CLI commands and modern Bun lockfile detection.
+- Updated registry parsing for the current `registry:ui` schema.
+- Added Data Table, Date Picker, deprecated Toast, and Typography/Typeset to the documentation picker.
+- Made the component-list reload action clear both extension and language-model caches.
+- Moved shadcn commands from temporary terminals to the dedicated `shadcn/plus` Output channel.
+
 ## v1.0.6 - 02/19/2026
 
 - Updated dependencies

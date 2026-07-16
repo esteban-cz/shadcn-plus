@@ -1,5 +1,5 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "name": "shadcn-plus",
   "displayName": "shadcn/plus",
   "description": "VS Code extension for shadcn/ui. Init and add one or multiple components directly from VS Code.",
@@ -63,27 +63,43 @@
           "default": "",
           "description": "Optional working directory for shadcn/ui commands. Relative paths resolve from the first workspace folder; absolute paths are supported."
         },
-        "shadcn-plus.baseColor": {
+        "shadcn-plus.componentLibrary": {
           "type": "string",
           "enum": [
-            "neutral",
-            "gray",
-            "zinc",
-            "stone",
-            "slate"
+            "base",
+            "radix"
           ],
-          "default": "zinc",
-          "description": "Default base color passed to the shadcn/ui init command."
+          "enumDescriptions": [
+            "Base UI (recommended for new projects).",
+            "Radix UI."
+          ],
+          "default": "base",
+          "description": "Component library passed to the shadcn/ui init command."
         },
-        "shadcn-plus.askBaseColor": {
+        "shadcn-plus.askComponentLibrary": {
           "type": "boolean",
           "default": false,
-          "description": "Ask for the base color each time before running the shadcn/ui init command."
+          "description": "Ask for the component library each time before running the shadcn/ui init command."
         },
-        "shadcn-plus.autoCloseTerminal": {
+        "shadcn-plus.preset": {
+          "type": "string",
+          "enum": [
+            "vega",
+            "nova",
+            "maia",
+            "lyra",
+            "mira",
+            "luma",
+            "sera",
+            "rhea"
+          ],
+          "default": "nova",
+          "description": "Preset passed to the shadcn/ui init command."
+        },
+        "shadcn-plus.askPreset": {
           "type": "boolean",
-          "default": true,
-          "description": "Automatically close extension-created terminals after command completion. If disabled, terminals remain open."
+          "default": false,
+          "description": "Ask for the preset each time before running the shadcn/ui init command."
         }
       }
     },
@@ -133,13 +149,12 @@
     "watch-tests": "tsc -p . -w --outDir out"
   },
   "devDependencies": {
-    "@types/node": "25.3.0",
-    "@types/vscode": "^1.109.0",
-    "ts-loader": "^9.5.4",
+    "@types/node": "^26.1.1",
+    "@types/vscode": "^1.125.0",
+    "npm-check-updates": "^22.2.9",
+    "ts-loader": "^9.6.2",
     "typescript": "^5.9.3",
-    "webpack": "^5.105.2",
-    "webpack-cli": "^6.0.1",
-    "npm-check-updates": "^19.4.1"
-  },
-  "dependencies": {}
+    "webpack": "^5.108.4",
+    "webpack-cli": "^7.2.1"
+  }
 }
