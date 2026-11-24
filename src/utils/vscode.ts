@@ -123,27 +123,59 @@ export const getFileStat = async (fileName: string, baseUri?: vscode.Uri) => {
   return null
 }
 
-export const detectPackageManager = async (
-  baseUri?: vscode.Uri
-): Promise<PackageManager> => {
-  const bunLockExists =
-    (await getFileStat('bun.lock', baseUri)) ??
-    (await getFileStat('bun.lockb', baseUri))
-  if (bunLockExists) {
-    return 'bun'
+async function getDeclaredPackageManager(cwd: vscode.Uri): Promise<PackageManager | undefined> {
+  try {
+    const file = vscode.Uri.joinPath(cwd, 'package.json')
+    const contents = Buffer.from(await vscode.workspace.fs.readFile(file)).toString('utf8')
+    const { packageManager } = JSON.parse(contents)
+    if (typeof packageManager === 'string') {
+      const [name] = packageManager.split('@')
+      if (name === 'npm' || name === 'pnpm' || name === 'yarn' || name === 'bun') {
+        return name
+      }
+    }
+  } catch {
+    // Some packages rely on lockfiles or inherit the workspace configuration.
   }
+  return undefined
+}
 
-  const pnpmLockExists = await getFileStat('pnpm-lock.yaml', baseUri)
-  if (pnpmLockExists) {
-    return 'pnpm'
+const lockfiles: ReadonlyArray<readonly [string, PackageManager]> = [
+  ['bun.lock', 'bun'],
+  ['bun.lockb', 'bun'],
+  ['pnpm-lock.yaml', 'pnpm'],
+  ['yarn.lock', 'yarn'],
+  ['package-lock.json', 'npm'],
+  ['npm-shrinkwrap.json', 'npm']
+]
+
+export const detectPackageManager = async (base: vscode.Uri): Promise<PackageManager> => {
+  const workspace = vscode.workspace.getWorkspaceFolder(base)?.uri
+  let cwd = base
+
+  while (true) {
+    const configured = await getDeclaredPackageManager(cwd)
+    if (configured) {
+      return configured
+    }
+
+    const locks = await Promise.all(lockfiles.map(([file]) => getFileStat(file, cwd)))
+    const match = lockfiles.find((_, index) =>
+      Boolean((locks[index]?.type ?? 0) & vscode.FileType.File)
+    )
+    if (match) {
+      return match[1]
+    }
+
+    if (!workspace || cwd.path === workspace.path) {
+      return 'npm'
+    }
+    const parent = path.posix.dirname(cwd.path)
+    if (parent === cwd.path) {
+      return 'npm'
+    }
+    cwd = cwd.with({ path: parent })
   }
-
-  const yarnLockExists = await getFileStat('yarn.lock', baseUri)
-  if (yarnLockExists) {
-    return 'yarn'
-  }
-
-  return 'npm'
 }
 
 export const getConfiguredCommandCwd = async (): Promise<vscode.Uri | null> => {
@@ -166,13 +198,12 @@ export const getConfiguredCommandCwd = async (): Promise<vscode.Uri | null> => {
     ? vscode.Uri.file(configuredPath)
     : vscode.Uri.joinPath(rootUri, configuredPath)
 
-  try {
-    await vscode.workspace.fs.stat(targetUri)
-    return targetUri
-  } catch (error) {
-    vscode.window.showWarningMessage(
-      `Configured shadcn/ui working directory "${configuredPath}" not found. Using workspace root instead.`
+  const stats = await getFileStat('.', targetUri)
+  if (!stats || !(stats.type & vscode.FileType.Directory)) {
+    void vscode.window.showWarningMessage(
+      `Set shadcn-plus.commandWorkingDirectory to an existing directory. Could not use "${configuredPath}".`
     )
-    return rootUri
+    return null
   }
+  return targetUri
 }

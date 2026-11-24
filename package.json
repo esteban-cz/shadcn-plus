@@ -1,8 +1,8 @@
 {
-  "version": "1.0.7",
+  "version": "1.1.0",
   "name": "shadcn-plus",
   "displayName": "shadcn/plus",
-  "description": "VS Code extension for shadcn/ui. Init and add one or multiple components directly from VS Code.",
+  "description": "Initialize shadcn/ui, preview component changes, and install components from VS Code.",
   "publisher": "esty",
   "license": "GPL-3.0-only",
   "repository": {
@@ -43,6 +43,10 @@
         "title": "shadcn/plus: Add Multiple Components"
       },
       {
+        "command": "shadcn-plus.previewComponentChanges",
+        "title": "shadcn/plus: Preview Component Changes"
+      },
+      {
         "command": "shadcn-plus.gotoComponentDoc",
         "title": "shadcn/plus: Open Component Documentation"
       },
@@ -67,14 +71,16 @@
           "type": "string",
           "enum": [
             "base",
-            "radix"
+            "radix",
+            "aria"
           ],
           "enumDescriptions": [
             "Base UI (recommended for new projects).",
-            "Radix UI."
+            "Radix UI.",
+            "Use React Aria Components."
           ],
           "default": "base",
-          "description": "Component library passed to the shadcn/ui init command."
+          "description": "Component library used by shadcn/ui init. Choose Base UI, Radix UI, or React Aria."
         },
         "shadcn-plus.askComponentLibrary": {
           "type": "boolean",

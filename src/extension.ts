@@ -17,7 +17,10 @@
 import * as vscode from 'vscode'
 
 import {
+  clearRegistryCache,
   getInitCmd,
+  getProjectLibrary,
+  getProjectStyle,
   getInstallCmd,
   getComponentDocLink,
   getDocumentationComponents,
@@ -41,13 +44,13 @@ const commands = {
   initCli: 'shadcn-plus.initCli',
   addNewComponent: 'shadcn-plus.addNewComponent',
   addMultipleComponents: 'shadcn-plus.addMultipleComponents',
+  previewComponentChanges: 'shadcn-plus.previewComponentChanges',
   gotoComponentDoc: 'shadcn-plus.gotoComponentDoc',
   reloadComponentList: 'shadcn-plus.reloadComponentList',
   gotoDoc: 'shadcn-plus.gotoDoc',
   showMenu: 'shadcn-plus.showMenu'
 } as const
 type CommandKey = keyof typeof commands
-const componentLibraryValues: ComponentLibrary[] = ['base', 'radix']
 const componentLibraryQuickPickItems: Array<
   vscode.QuickPickItem & { value: ComponentLibrary }
 > = [
@@ -60,6 +63,11 @@ const componentLibraryQuickPickItems: Array<
     label: 'Radix',
     description: 'Use Radix UI primitives',
     value: 'radix'
+  },
+  {
+    label: 'React Aria',
+    description: 'Use React Aria Components',
+    value: 'aria'
   }
 ]
 const presetValues: Preset[] = [
@@ -79,11 +87,8 @@ const presetQuickPickItems: Array<
   value
 }))
 const normalizeComponentLibrary = (value?: string): ComponentLibrary => {
-  const normalized = (value ?? '').toLowerCase()
-  if (componentLibraryValues.includes(normalized as ComponentLibrary)) {
-    return normalized as ComponentLibrary
-  }
-  return 'base'
+  const normalized = value?.trim().toLowerCase()
+  return componentLibraryQuickPickItems.find(({ value }) => value === normalized)?.value ?? 'base'
 }
 const normalizePreset = (value?: string): Preset => {
   const normalized = (value ?? '').toLowerCase()
@@ -94,14 +99,6 @@ const normalizePreset = (value?: string): Preset => {
 }
 
 class GetShadcnComponentListTool implements vscode.LanguageModelTool<{}> {
-  private static registryCache: { data: Components; timestamp: number } | null =
-    null
-  private static readonly cacheTtl = 5 * 60 * 1000 // 5 minutes
-
-  static clearCache(): void {
-    GetShadcnComponentListTool.registryCache = null
-  }
-
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<{}>,
     token: vscode.CancellationToken
@@ -113,20 +110,9 @@ class GetShadcnComponentListTool implements vscode.LanguageModelTool<{}> {
         ])
       }
 
-      const now = Date.now()
-      if (
-        GetShadcnComponentListTool.registryCache &&
-        now - GetShadcnComponentListTool.registryCache.timestamp <
-          GetShadcnComponentListTool.cacheTtl
-      ) {
-        return new vscode.LanguageModelToolResult([
-          new vscode.LanguageModelTextPart(
-            JSON.stringify(GetShadcnComponentListTool.registryCache.data)
-          )
-        ])
-      }
-
-      const components = await getRegistry()
+      const cwd = await getConfiguredCommandCwd()
+      const style = cwd ? await getProjectStyle(cwd) : undefined
+      const components = await getRegistry(style)
 
       if (token.isCancellationRequested) {
         return new vscode.LanguageModelToolResult([
@@ -140,12 +126,6 @@ class GetShadcnComponentListTool implements vscode.LanguageModelTool<{}> {
             'Failed to fetch component list from shadcn/ui registry'
           )
         ])
-      }
-
-      // cache the components
-      GetShadcnComponentListTool.registryCache = {
-        data: components,
-        timestamp: Date.now()
       }
 
       return new vscode.LanguageModelToolResult([
@@ -257,7 +237,6 @@ class InstallShadcnComponentTool implements vscode.LanguageModelTool<InstallComp
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  let registryData: Components | undefined
   const outputChannel = vscode.window.createOutputChannel('shadcn/plus')
 
   const hasWorkspace = (): boolean =>
@@ -274,37 +253,12 @@ export function activate(context: vscode.ExtensionContext) {
     return false
   }
 
-  const checkRegistryData = async (): Promise<boolean> => {
-    if (registryData) {
-      return true
+  const loadComponents = async (style?: string): Promise<Components | null> => {
+    const components = await getRegistry(style)
+    if (!components) {
+      void vscode.window.showErrorMessage('Could not load the shadcn/ui component list.')
     }
-
-    const newRegistryData = await getRegistry()
-    if (!newRegistryData) {
-      vscode.window.showErrorMessage('Can not get the component list')
-      return false
-    }
-
-    registryData = newRegistryData
-    return true
-  }
-
-  const getInstallCmdWithFeedback = async (
-    components: string[],
-    cwd: vscode.Uri
-  ): Promise<ExecutableCommand | null> => {
-    try {
-      return await getInstallCmd(components, cwd)
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Invalid component name provided.'
-      vscode.window.showErrorMessage(
-        `Failed to build install command: ${message}`
-      )
-      return null
-    }
+    return components
   }
 
   const executeCommandWithFeedback = async (
@@ -338,17 +292,29 @@ export function activate(context: vscode.ExtensionContext) {
           command: 'initCli'
         }
 
-    const baseItems: MenuQuickPickItem[] = [
-      {
-        label: 'Add Component',
-        description: 'Add a single shadcn/ui component',
-        command: 'addNewComponent'
-      },
-      {
-        label: 'Add Multiple Components',
-        description: 'Install more than one component at once',
-        command: 'addMultipleComponents'
-      },
+    const projectItems: MenuQuickPickItem[] = hasComponentsFile
+      ? [
+          {
+            label: 'Add Component',
+            description: 'Install a single shadcn/ui component',
+            command: 'addNewComponent'
+          },
+          {
+            label: 'Add Multiple Components',
+            description: 'Install more than one component at once',
+            command: 'addMultipleComponents'
+          },
+          {
+            label: 'Preview Component Changes',
+            description: 'See the proposed changes in the Output panel',
+            command: 'previewComponentChanges'
+          }
+        ]
+      : []
+
+    return [
+      ...projectItems,
+      cliItem,
       {
         label: 'Open Component Docs',
         description: 'Open documentation for a specific component',
@@ -365,19 +331,61 @@ export function activate(context: vscode.ExtensionContext) {
         command: 'gotoDoc'
       }
     ]
+  }
 
-    if (!hasComponentsFile) {
-      return [cliItem, baseItems[2], baseItems[3], baseItems[4]]
+  const componentItems = (components: Components) =>
+    components.map(({ label, dependencies }) => ({ label, detail: dependencies }))
+
+  const selectComponents = async (mode: 'single' | 'multiple' | 'preview') => {
+    if (!ensureWorkspace()) {
+      return
     }
 
-    return [
-      baseItems[0],
-      baseItems[1],
-      cliItem,
-      baseItems[2],
-      baseItems[3],
-      baseItems[4]
-    ]
+    const cwd = await getConfiguredCommandCwd()
+    if (!cwd) {
+      return
+    }
+
+    const preview = mode === 'preview'
+    if (preview) {
+      const config = await getFileStat('components.json', cwd)
+      if (!config || !(config.type & vscode.FileType.File)) {
+        void vscode.window.showWarningMessage('Initialize shadcn/ui in this folder before previewing component changes.')
+        return
+      }
+    }
+
+    const style = await getProjectStyle(cwd)
+    const components = await loadComponents(style)
+    if (!components) {
+      return
+    }
+
+    const items = componentItems(components)
+    const pickerOptions = {
+      title: preview ? 'Preview shadcn/ui Component Changes' : 'Add shadcn/ui Components',
+      placeHolder: 'Search by component name or dependency',
+      matchOnDetail: true
+    }
+    const picked = mode === 'single'
+      ? [await vscode.window.showQuickPick(items, pickerOptions)]
+      : await vscode.window.showQuickPick(items, { ...pickerOptions, canPickMany: true })
+    const names = picked?.flatMap((item) => item ? [item.label] : []) ?? []
+    if (names.length === 0) {
+      return
+    }
+
+    try {
+      const command = await getInstallCmd(names, cwd, preview)
+      await executeCommandWithFeedback(
+        command,
+        cwd,
+        preview ? 'Component preview' : 'Component installation'
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      void vscode.window.showErrorMessage(`Could not prepare the shadcn/ui command: ${message}`)
+    }
   }
 
   const toolDisposables = [
@@ -493,126 +501,43 @@ export function activate(context: vscode.ExtensionContext) {
       await executeCommandWithFeedback(initCmd, commandCwd, 'Initialization')
     }),
 
-    vscode.commands.registerCommand(commands.addNewComponent, async () => {
-      if (!ensureWorkspace()) {
-        return
-      }
-
-      const hasRegistryData = await checkRegistryData()
-      if (!hasRegistryData || !registryData) {
-        return
-      }
-
-      const commandCwd = await getConfiguredCommandCwd()
-      if (!commandCwd) {
-        return
-      }
-
-      const selectedComponent = await vscode.window.showQuickPick(
-        registryData,
-        {
-          matchOnDescription: true
-        }
-      )
-
-      if (!selectedComponent) {
-        return
-      }
-
-      const installCmd = await getInstallCmdWithFeedback(
-        [selectedComponent.label],
-        commandCwd
-      )
-      if (!installCmd) {
-        return
-      }
-
-      await executeCommandWithFeedback(
-        installCmd,
-        commandCwd,
-        'Component installation'
-      )
-    }),
-
+    vscode.commands.registerCommand(
+      commands.addNewComponent,
+      () => selectComponents('single')
+    ),
     vscode.commands.registerCommand(
       commands.addMultipleComponents,
-      async () => {
-        if (!ensureWorkspace()) {
-          return
-        }
-
-        const hasRegistryData = await checkRegistryData()
-        if (!hasRegistryData || !registryData) {
-          return
-        }
-
-        const commandCwd = await getConfiguredCommandCwd()
-        if (!commandCwd) {
-          return
-        }
-
-        const selectedComponents = await vscode.window.showQuickPick(
-          registryData,
-          {
-            matchOnDescription: true,
-            canPickMany: true
-          }
-        )
-
-        if (!selectedComponents) {
-          return
-        }
-
-        const selectedComponent = selectedComponents.map(
-          (component: { label: string }) => component.label
-        )
-        const installCmd = await getInstallCmdWithFeedback(
-          selectedComponent,
-          commandCwd
-        )
-        if (!installCmd) {
-          return
-        }
-
-        await executeCommandWithFeedback(
-          installCmd,
-          commandCwd,
-          'Component installation'
-        )
-      }
+      () => selectComponents('multiple')
     ),
-
+    vscode.commands.registerCommand(
+      commands.previewComponentChanges,
+      () => selectComponents('preview')
+    ),
     vscode.commands.registerCommand(commands.gotoComponentDoc, async () => {
-      const hasRegistryData = await checkRegistryData()
-      if (!hasRegistryData || !registryData) {
+      const cwd = await getConfiguredCommandCwd()
+      const style = cwd ? await getProjectStyle(cwd) : undefined
+      const library = getProjectLibrary(style)
+      const components = await loadComponents(style)
+      if (!components) {
         return
       }
 
-      const documentationComponents = getDocumentationComponents(registryData)
-      const selectedComponent = await vscode.window.showQuickPick(
-        documentationComponents,
-        {
-          matchOnDescription: true
-        }
-      )
-
-      if (!selectedComponent) {
-        return
+      const documentation = getDocumentationComponents(components)
+      const picked = await vscode.window.showQuickPick(componentItems(documentation), {
+        placeHolder: 'Search shadcn/ui component documentation',
+        matchOnDetail: true
+      })
+      if (picked) {
+        await vscode.env.openExternal(vscode.Uri.parse(getComponentDocLink(picked.label, library)))
       }
-
-      const componentDocLink = getComponentDocLink(selectedComponent.label)
-
-      vscode.env.openExternal(vscode.Uri.parse(componentDocLink))
     }),
     vscode.commands.registerCommand(commands.reloadComponentList, async () => {
-      registryData = undefined
-      GetShadcnComponentListTool.clearCache()
-      const hasRegistryData = await checkRegistryData()
-      if (!hasRegistryData) {
-        return
+      clearRegistryCache()
+      const cwd = await getConfiguredCommandCwd()
+      const style = cwd ? await getProjectStyle(cwd) : undefined
+      if (await loadComponents(style)) {
+        void vscode.window.showInformationMessage('shadcn/ui: Reloaded components')
       }
-
-      vscode.window.showInformationMessage('shadcn/ui: Reloaded components')
     }),
     vscode.commands.registerCommand(commands.gotoDoc, async () => {
       vscode.env.openExternal(vscode.Uri.parse(shadCnDocUrl))

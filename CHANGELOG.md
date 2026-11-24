@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.1.0 - 11/24/2026
+
+- Added **Preview Component Changes** for one or more components.
+- Added React Aria initialization and project-specific registry and documentation links.
+- Improved component search, registry caching, and monorepo package manager detection.
+- Stop commands when a configured working directory is invalid.
+
 ## v1.0.7 - 07/16/2026
 
 - Updated initialization for the latest shadcn CLI with Base/Radix component-library and preset selection.

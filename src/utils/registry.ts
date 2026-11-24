@@ -42,7 +42,7 @@ type Component = {
 export const shadCnDocUrl = 'https://ui.shadcn.com/docs'
 
 export type Components = Component[]
-export type ComponentLibrary = 'base' | 'radix'
+export type ComponentLibrary = 'base' | 'radix' | 'aria'
 export type Preset =
   | 'vega'
   | 'nova'
@@ -63,6 +63,12 @@ const registryUrl = 'https://ui.shadcn.com/r/index.json'
 const registryRequestTimeoutMs = 8000
 const maxRegistryAttempts = 3
 const retryBackoffMs = 500
+const registryCacheTtlMs = 5 * 60 * 1000
+const registryCache = new Map<string, {
+  request: Promise<Components | null>
+  expiresAt: number
+}>()
+
 const validComponentNameRegex = /^[a-z0-9][a-z0-9-]*$/i
 const documentationOnlyComponents: Components = [
   {
@@ -75,7 +81,7 @@ const documentationOnlyComponents: Components = [
   },
   {
     label: 'toast',
-    dependencies: 'Deprecated documentation (use sonner instead)'
+    dependencies: 'Toast documentation'
   },
   {
     label: 'typography',
@@ -102,7 +108,7 @@ const sanitizeComponentNames = (components: string[]): string[] => {
     )
   }
 
-  return filteredComponents
+  return [...new Set(filteredComponents)]
 }
 
 const delay = (ms: number) =>
@@ -148,7 +154,7 @@ const buildShadcnCommand = (
   }
 }
 
-export const getRegistry = async (): Promise<Components | null> => {
+const fetchRegistry = async (url: string): Promise<Components | null> => {
   let lastError: unknown = null
 
   for (let attempt = 0; attempt < maxRegistryAttempts; attempt++) {
@@ -158,25 +164,29 @@ export const getRegistry = async (): Promise<Components | null> => {
     }, registryRequestTimeoutMs)
 
     try {
-      const res = await fetch(registryUrl, {
+      const res = await fetch(url, {
         signal: controller.signal,
         headers: {
           accept: 'application/json'
         }
       })
 
+      if (res.status === 404 && url !== registryUrl) {
+        return null
+      }
       if (!res.ok) {
         throw new Error(
           `Registry request failed with status ${res.status} ${res.statusText}`
         )
       }
 
-      const data = (await res.json()) as unknown
-      if (!Array.isArray(data)) {
-        throw new Error('Registry response is not an array.')
+      const data = await res.json() as { items?: unknown } | unknown[]
+      const items = Array.isArray(data) ? data : data?.items
+      if (!Array.isArray(items)) {
+        throw new Error('Registry response does not contain a component list.')
       }
 
-      const components = data.filter(isRegistryUiItem).map((component) => ({
+      const components = items.filter(isRegistryUiItem).map((component) => ({
         label: component.name,
         dependencies: `dependencies: ${
           component.dependencies?.join(' ') || 'no dependency'
@@ -204,9 +214,61 @@ export const getRegistry = async (): Promise<Components | null> => {
   return null
 }
 
+export function getRegistry(style?: string): Promise<Components | null> {
+  const url = style
+    ? `https://ui.shadcn.com/r/styles/${encodeURIComponent(style)}/registry.json`
+    : registryUrl
+  const now = Date.now()
+  const cached = registryCache.get(url)
+  if (cached && cached.expiresAt > now) {
+    return cached.request
+  }
+
+  const request = style
+    ? fetchRegistry(url).then((components) => components ?? getRegistry())
+    : fetchRegistry(url)
+  registryCache.set(url, { request, expiresAt: now + registryCacheTtlMs })
+  void request.then((components) => {
+    if (!components && registryCache.get(url)?.request === request) {
+      registryCache.delete(url)
+    }
+  })
+  return request
+}
+
+export function clearRegistryCache(): void {
+  registryCache.clear()
+}
+
+export async function getProjectStyle(cwd: vscode.Uri): Promise<string | undefined> {
+  try {
+    const file = vscode.Uri.joinPath(cwd, 'components.json')
+    const contents = Buffer.from(await vscode.workspace.fs.readFile(file)).toString('utf8')
+    const { style } = JSON.parse(contents)
+    if (typeof style === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(style)) {
+      return style
+    }
+  } catch {
+    // Uninitialized projects use the general registry.
+  }
+  return undefined
+}
+
+export function getProjectLibrary(style?: string): ComponentLibrary | undefined {
+  const base = style?.split('-')[0]
+  if (base === 'base' || base === 'radix' || base === 'aria') {
+    return base
+  }
+  if (style === 'default' || style === 'new-york' || style === 'new-york-v4') {
+    return 'radix'
+  }
+  return undefined
+}
+
 export const getInstallCmd = async (
   components: string[],
-  cwd?: vscode.Uri
+  cwd: vscode.Uri,
+  preview = false
 ): Promise<ExecutableCommand> => {
   const packageManager = await detectPackageManager(cwd)
   const safeComponents = sanitizeComponentNames(components)
@@ -214,13 +276,14 @@ export const getInstallCmd = async (
   return buildShadcnCommand(packageManager, [
     'add',
     ...safeComponents,
-    '--yes'
+    '--yes',
+    ...(preview ? ['--dry-run'] : [])
   ])
 }
 
 export const getInitCmd = async (
-  options: InitOptions = {},
-  cwd?: vscode.Uri
+  options: InitOptions,
+  cwd: vscode.Uri
 ) => {
   const packageManager = await detectPackageManager(cwd)
   const componentLibrary = options.componentLibrary ?? 'base'
@@ -243,7 +306,9 @@ export const getDocumentationComponents = (
   )
 
   for (const component of documentationOnlyComponents) {
-    componentsByName.set(component.label, component)
+    if (!componentsByName.has(component.label)) {
+      componentsByName.set(component.label, component)
+    }
   }
 
   return [...componentsByName.values()].sort((a, b) =>
@@ -251,10 +316,14 @@ export const getDocumentationComponents = (
   )
 }
 
-export const getComponentDocLink = (component: string) => {
+export const getComponentDocLink = (
+  component: string,
+  library?: ComponentLibrary
+) => {
   if (component === 'typography') {
     return `${shadCnDocUrl}/typeset`
   }
 
-  return `${shadCnDocUrl}/components/${component}`
+  const libraryPath = library ? `${library}/` : ''
+  return `${shadCnDocUrl}/components/${libraryPath}${component}`
 }

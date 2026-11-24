@@ -7,7 +7,7 @@
   
   [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://choosealicense.com/licenses/gpl-3.0/)&nbsp;&nbsp;&nbsp;
   ![Maintenance](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)&nbsp;&nbsp;&nbsp;
-  ![Extension Version](https://img.shields.io/github/package-json/v/esteban-cz/shadcn-plus/master?style=for-the-badge&label=Version)&nbsp;&nbsp;&nbsp;
+  ![Extension Version](https://img.shields.io/github/package-json/v/esteban-cz/shadcn-plus/main?style=for-the-badge&label=Version)&nbsp;&nbsp;&nbsp;
   ![GitHub last commit](https://img.shields.io/github/last-commit/esteban-cz/shadcn-plus?style=for-the-badge)
   
 </sub><br><br>
@@ -26,8 +26,9 @@
 ## Features
 
 - Status bar shortcut: bottom-left `shadcn/plus` menu (only visible when a workspace is open).
-- Quick actions: install/reinstall CLI, add one or many components, open component docs, reload registry list, open shadcn/ui docs.
-- Configurable working directory for shadcn/ui commands (relative or absolute, great for monorepos).
+- Preview changes for one or more components with **shadcn/plus: Preview Component Changes**. The command runs the CLI in dry-run mode and shows the proposed changes in the **shadcn/plus** Output channel. [shadcn CLI reference](https://ui.shadcn.com/docs/cli#add)
+- Install or reinitialize shadcn/ui, browse your project style's component registry, and open documentation for its library.
+- Configurable working directory for shadcn/ui commands. The extension checks the target package first and then its workspace ancestors for a package manager.
 - Adaptive CLI action: shows `Install CLI` before initialization, and `Reinstall CLI` when `components.json` already exists.
 - Registry caching and a dedicated Output channel for clean command logs.
 - Non-interactive init and component installation without temporary terminals.
@@ -58,8 +59,8 @@
 
 ## Settings
 
-- `shadcn-plus.commandWorkingDirectory` (string): optional working directory for shadcn/ui commands. Leave blank to use the workspace root; relative paths resolve from the first workspace folder; absolute paths are supported.
-- `shadcn-plus.componentLibrary` (string): component library passed to `shadcn/ui init`. Options: `base` (default and recommended) or `radix`.
+- `shadcn-plus.commandWorkingDirectory` (string): optional working directory for shadcn/ui commands. Leave blank to use the workspace root; relative paths resolve from the first workspace folder; absolute paths are supported. A missing or invalid directory stops the command so you can correct the setting.
+- `shadcn-plus.componentLibrary` (string): component library passed to `shadcn/ui init`. Choose Base UI (`base`, the default), Radix UI (`radix`), or React Aria (`aria`). [React Aria support](https://ui.shadcn.com/docs/changelog/2026-07-react-aria)
 - `shadcn-plus.askComponentLibrary` (boolean): prompt for the component library each time before running `shadcn/ui init`.
 - `shadcn-plus.preset` (string): preset passed to `shadcn/ui init`. Options: `vega`, `nova` (default), `maia`, `lyra`, `mira`, `luma`, `sera`, or `rhea`.
 - `shadcn-plus.askPreset` (boolean): prompt for the preset each time before running `shadcn/ui init`.
@@ -67,6 +68,12 @@
 ---
 
 ## Release Notes
+
+## v1.1.0
+
+- Added component previews in the Output channel and React Aria support for initialization.
+- Updated component documentation links to use the project's library when known.
+- Improved package manager detection for nested workspace packages and validation of configured working directories.
 
 ## v1.0.7
 
